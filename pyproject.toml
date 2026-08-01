@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taifex-daily"
+version = "0.1.0"
+description = "抓台灣期交所每日行情的小工具：期貨與選擇權日行情，直接回 pandas DataFrame"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "catcat222222" }]
+dependencies = ["requests>=2.20", "pandas>=1.3"]
+
+[project.urls]
+Homepage = "https://github.com/catcat222222/taifex-daily"
+
+[tool.setuptools]
+packages = ["taifex_daily"]
