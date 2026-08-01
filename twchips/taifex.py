@@ -1,11 +1,9 @@
 """期交所（TAIFEX）：日行情與三大法人。"""
 from __future__ import annotations
 
-import functools
-
 import pandas as pd
 
-from ._core import filter_session, norm_date, post_csv
+from ._core import filter_session, norm_date, post_csv, who_shortcuts
 
 _BASE = "https://www.taifex.com.tw/cht/3/"
 
@@ -19,13 +17,6 @@ _WHO = {
     "投信": "投信",
     "自營商": "自營商",
 }
-
-
-def _who_shortcuts(fn):
-    """讓 institutional_futures.foreign("2026-07-31") 這種寫法成立。"""
-    for alias in ("foreign", "trust", "dealer"):
-        setattr(fn, alias, functools.partial(fn, who=alias))
-    return fn
 
 
 def _filter_who(df: pd.DataFrame, who: str | None) -> pd.DataFrame:
@@ -62,7 +53,7 @@ def options_daily(date, product: str = "TXO", session: str | None = None) -> pd.
     return filter_session(df, session)
 
 
-@_who_shortcuts
+@who_shortcuts
 def institutional(date, who: str | None = None) -> pd.DataFrame:
     """三大法人「總表」：期貨＋選擇權合計的交易與未平倉，多空口數與契約金額。
 
@@ -76,7 +67,7 @@ def institutional(date, who: str | None = None) -> pd.DataFrame:
     return _filter_who(df, who)
 
 
-@_who_shortcuts
+@who_shortcuts
 def institutional_futures(date, who: str | None = None, product: str | None = None) -> pd.DataFrame:
     """三大法人—期貨契約（依商品分）：臺股期貨、小型臺指…逐商品列。
 
@@ -89,7 +80,7 @@ def institutional_futures(date, who: str | None = None, product: str | None = No
     return _filter_eq(_filter_who(df, who), "商品名稱", product)
 
 
-@_who_shortcuts
+@who_shortcuts
 def institutional_options(date, who: str | None = None, product: str | None = None,
                           side: str | None = None) -> pd.DataFrame:
     """三大法人—選擇權（買賣權分計）：CALL 與 PUT 分開列。金額單位「千元」。
