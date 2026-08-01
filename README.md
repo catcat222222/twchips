@@ -74,7 +74,7 @@ ms = twse.margin_stocks("2026-07-31", stock="2330")
 
 ## 關於 AI
 
-程式碼是我跟 Claude Code 一起寫的。要抓什麼、介面長怎樣、哪些先不做，是我決定的。
+程式碼是我跟 Claude Code 一起寫的。
 
 ## 免責
 
