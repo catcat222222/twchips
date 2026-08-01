@@ -1,11 +1,45 @@
 """期交所（TAIFEX）：日行情與三大法人。"""
 from __future__ import annotations
 
+import functools
+
 import pandas as pd
 
 from ._core import filter_session, norm_date, post_csv
 
 _BASE = "https://www.taifex.com.tw/cht/3/"
+
+# 資料裡的正式名稱是「外資及陸資」；who= 收英文或中文都行
+_WHO = {
+    "foreign": "外資及陸資",
+    "trust": "投信",
+    "dealer": "自營商",
+    "外資": "外資及陸資",
+    "外資及陸資": "外資及陸資",
+    "投信": "投信",
+    "自營商": "自營商",
+}
+
+
+def _who_shortcuts(fn):
+    """讓 institutional_futures.foreign("2026-07-31") 這種寫法成立。"""
+    for alias in ("foreign", "trust", "dealer"):
+        setattr(fn, alias, functools.partial(fn, who=alias))
+    return fn
+
+
+def _filter_who(df: pd.DataFrame, who: str | None) -> pd.DataFrame:
+    if who is None or df.empty:
+        return df
+    if who not in _WHO:
+        raise ValueError(f"who 要是 foreign／trust／dealer（或中文），收到 {who!r}")
+    return df[df["身份別"] == _WHO[who]].reset_index(drop=True)
+
+
+def _filter_eq(df: pd.DataFrame, col: str, value: str | None) -> pd.DataFrame:
+    if value is None or df.empty:
+        return df
+    return df[df[col] == value].reset_index(drop=True)
 
 
 def futures_daily(date, product: str = "TX", session: str | None = None) -> pd.DataFrame:
@@ -28,26 +62,45 @@ def options_daily(date, product: str = "TXO", session: str | None = None) -> pd.
     return filter_session(df, session)
 
 
-def institutional(date) -> pd.DataFrame:
+@_who_shortcuts
+def institutional(date, who: str | None = None) -> pd.DataFrame:
     """三大法人「總表」：期貨＋選擇權合計的交易與未平倉，多空口數與契約金額。
 
     就是期交所網站三大法人專區第一頁那兩張表，攤平成一張。
     身份別：自營商、投信、外資及陸資。金額單位是「百萬元」。
+
+    who -- "foreign"／"trust"／"dealer"（中文也收），只要某個身份別。
+           institutional.foreign(date) 是 institutional(date, who="foreign") 的縮寫。
     """
-    return post_csv(_BASE + "totalTableDateDown", _dates(date))
+    df = post_csv(_BASE + "totalTableDateDown", _dates(date))
+    return _filter_who(df, who)
 
 
-def institutional_futures(date) -> pd.DataFrame:
+@_who_shortcuts
+def institutional_futures(date, who: str | None = None, product: str | None = None) -> pd.DataFrame:
     """三大法人—期貨契約（依商品分）：臺股期貨、小型臺指…逐商品列。
 
     注意金額單位是「千元」，跟總表的百萬元不一樣，期交所就是這樣給的。
+
+    who     -- 同 institutional；institutional_futures.foreign(date) 也通
+    product -- 用「商品名稱」篩，例如 "臺股期貨"
     """
-    return post_csv(_BASE + "futContractsDateDown", _dates(date))
+    df = post_csv(_BASE + "futContractsDateDown", _dates(date))
+    return _filter_eq(_filter_who(df, who), "商品名稱", product)
 
 
-def institutional_options(date) -> pd.DataFrame:
-    """三大法人—選擇權（買賣權分計）：CALL 與 PUT 分開列。金額單位「千元」。"""
-    return post_csv(_BASE + "callsAndPutsDateDown", _dates(date))
+@_who_shortcuts
+def institutional_options(date, who: str | None = None, product: str | None = None,
+                          side: str | None = None) -> pd.DataFrame:
+    """三大法人—選擇權（買賣權分計）：CALL 與 PUT 分開列。金額單位「千元」。
+
+    who     -- 同 institutional
+    product -- 用「商品名稱」篩，例如 "臺指選擇權"
+    side    -- "CALL" 或 "PUT"
+    """
+    df = post_csv(_BASE + "callsAndPutsDateDown", _dates(date))
+    df = _filter_eq(_filter_who(df, who), "商品名稱", product)
+    return _filter_eq(df, "買賣權別", side.upper() if side else None)
 
 
 def _daily(url: str, commodity_id: str, date) -> pd.DataFrame:

@@ -43,3 +43,23 @@ def test_options_calls_and_puts():
     df = parse_big5_csv((DATA / "institutional_opt_20260731.csv").read_bytes())
     assert set(df["買賣權別"]) == {"CALL", "PUT"}
     assert pd.api.types.is_numeric_dtype(df["買方交易口數"])
+
+
+def test_who_filter(total):
+    from twchips import taifex
+
+    foreign = taifex._filter_who(total, "foreign")
+    assert list(foreign["身份別"]) == ["外資及陸資"]
+    # 中文也收
+    assert taifex._filter_who(total, "外資").equals(foreign)
+    with pytest.raises(ValueError):
+        taifex._filter_who(total, "散戶")
+
+
+def test_who_shortcuts_are_bound():
+    from twchips import taifex
+
+    for fn in (taifex.institutional, taifex.institutional_futures, taifex.institutional_options):
+        assert fn.foreign.keywords == {"who": "foreign"}
+        assert fn.trust.keywords == {"who": "trust"}
+        assert fn.dealer.keywords == {"who": "dealer"}
