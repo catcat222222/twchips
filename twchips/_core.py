@@ -50,6 +50,10 @@ def get_json(url: str, params: dict) -> dict:
 
 
 def parse_big5_csv(raw: bytes) -> pd.DataFrame:
+    if raw.lstrip()[:1] == b"<":
+        # 查無資料時（例如三大法人端點遇到非交易日）期交所回的是 HTML 頁不是 CSV，
+        # 而且編碼還是 UTF-8——硬解 Big5 會炸。跟日行情端點的空 CSV 行為對齊，回空表。
+        return pd.DataFrame()
     text = raw.decode("cp950")  # 期交所給的是 Big5
     # index_col=False：期貨檔每行結尾多一個逗號，不加這個 pandas 會把第一欄當 index、欄位整排位移
     df = pd.read_csv(io.StringIO(text), dtype=str, index_col=False)

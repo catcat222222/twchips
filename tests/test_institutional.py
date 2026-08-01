@@ -45,6 +45,12 @@ def test_options_calls_and_puts():
     assert pd.api.types.is_numeric_dtype(df["買方交易口數"])
 
 
+def test_non_trading_day_returns_html_not_csv():
+    # 三大法人端點非交易日回 UTF-8 的 HTML 頁（跟日行情端點的空 CSV 不同），要回空表不能炸
+    df = parse_big5_csv((DATA / "institutional_sunday.html").read_bytes())
+    assert df.empty
+
+
 def test_who_filter(total):
     from twchips import taifex
 
