@@ -1,6 +1,7 @@
 """三大法人的離線測試：樣本是 2026-07-31 從期交所實際抓回來的原始回應（Big5）。"""
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from twchips._core import parse_big5_csv
@@ -25,7 +26,8 @@ def test_total_matches_website(total):
 
 
 def test_total_negative_numbers_are_numeric(total):
-    assert total["多空未平倉契約金額淨額(百萬元)"].dtype == "float64"
+    # 沒有缺值的欄會是 int64、有缺值的是 float64，都算對
+    assert pd.api.types.is_numeric_dtype(total["多空未平倉契約金額淨額(百萬元)"])
     assert (total["多空未平倉口數淨額"] < 0).any()
 
 
@@ -40,4 +42,4 @@ def test_futures_by_product():
 def test_options_calls_and_puts():
     df = parse_big5_csv((DATA / "institutional_opt_20260731.csv").read_bytes())
     assert set(df["買賣權別"]) == {"CALL", "PUT"}
-    assert df["買方交易口數"].dtype == "float64"
+    assert pd.api.types.is_numeric_dtype(df["買方交易口數"])
