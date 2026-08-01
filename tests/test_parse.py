@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from taifex_daily import _filter_session, _parse
+from twchips._core import filter_session as _filter_session, parse_big5_csv as _parse
 
 DATA = Path(__file__).parent / "data"
 
