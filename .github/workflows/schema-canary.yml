@@ -1,0 +1,82 @@
+name: schema canary
+
+# 每個交易日收盤後真的去打一次交易所，比對欄位有沒有變。
+# 離線測試只驗解析邏輯沒被自己改壞；官網改版要靠這支才會知道。
+
+on:
+  schedule:
+    # UTC 10:30 = 台北 18:30。收盤、三大法人與融資融券都公布完了。
+    - cron: "30 10 * * 1-5"
+  workflow_dispatch:
+  push:
+    paths:
+      - "twchips/**"
+      - "tests/**"
+      - ".github/workflows/schema-canary.yml"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: schema-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安裝
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pytest
+
+      - name: 離線測試（解析邏輯）
+        run: pytest tests -q --ignore=tests/test_live.py
+
+      - name: 真站哨兵（官網 schema）
+        id: live
+        # 寫死 shell: bash 才有 pipefail；預設的 bash -e 會讓 tee 把 pytest 的失敗吃掉
+        shell: bash
+        env:
+          TWCHIPS_LIVE: "1"
+        run: pytest tests/test_live.py -q -rA 2>&1 | tee canary.log
+
+      - name: 壞了就開 issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create schema-canary --color B60205 \
+            --description "真站 schema 哨兵紅燈" 2>/dev/null || true
+
+          existing=$(gh issue list --state open --label schema-canary \
+            --json number --jq '.[0].number')
+
+          body=$(printf '真站哨兵在 %s 紅燈。\n\n可能是交易所改了欄位、端點搬家，或 CI 的 IP 被擋。\n先看這一輪的輸出：%s\n\n<details><summary>測試輸出</summary>\n\n```\n%s\n```\n\n</details>\n' \
+            "$(date -u '+%Y-%m-%d %H:%MZ')" "$RUN_URL" "$(tail -c 8000 canary.log 2>/dev/null)")
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --label schema-canary \
+              --title "真站 schema 哨兵紅燈（$(date -u '+%Y-%m-%d')）" \
+              --body "$body"
+          fi
+
+      - name: 好了就把 issue 關掉
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --state open --label schema-canary --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "哨兵恢復綠燈，自動關閉。"
+          done
